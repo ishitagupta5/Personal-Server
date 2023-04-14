@@ -207,7 +207,26 @@ bufio_sendfile(struct bufio *self, int fd, off_t *off, size_t filesize)
  * See send(2) for return value.
  */
 ssize_t 
-bufio_sendbuffer(struct bufio *self, buffer_t * resp)
+bufio_sendbuffer(struct bufio *self, buffer_t *resp)
 {
     return send(self->socket, resp->buf, resp->len, MSG_NOSIGNAL);
+}
+
+/*
+ * Send data contained in 'resp[0]' to 'resp[n-1]' to the socket.
+ * See sendmsg(2) for the return value
+ */
+ssize_t
+bufio_sendbuffers(struct bufio *self, buffer_t **resp, size_t n)
+{
+    struct iovec vecs[n];
+    for (int i = 0; i < n; i++) {
+        vecs[i].iov_base = resp[i]->buf;
+        vecs[i].iov_len = resp[i]->len;
+    }
+    struct msghdr msg = {
+        .msg_iov = vecs,
+        .msg_iovlen = n
+    };
+    return sendmsg(self->socket, &msg, MSG_NOSIGNAL);
 }

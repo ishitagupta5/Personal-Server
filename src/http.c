@@ -150,6 +150,8 @@ add_content_length(buffer_t *res, size_t len)
 static void
 start_response(struct http_transaction * ta, buffer_t *res)
 {
+    buffer_init(&response, 80);
+
     buffer_appends(res, "HTTP/1.0 ");
 
     switch (ta->resp_status) {
@@ -196,18 +198,16 @@ static bool
 send_response_header(struct http_transaction *ta)
 {
     buffer_t response;
-    buffer_init(&response, 80);
-
     start_response(ta, &response);
-    if (bufio_sendbuffer(ta->client->bufio, &response) == -1)
-        return false;
-
     buffer_appends(&ta->resp_headers, CRLF);
-    if (bufio_sendbuffer(ta->client->bufio, &ta->resp_headers) == -1)
-        return false;
 
+    buffer_t *response_and_headers[2] = {
+        &response, &ta->resp_headers
+    };
+
+    int rc = bufio_sendbuffers(ta->client->bufio, response_and_headers, 2);
     buffer_delete(&response);
-    return true;
+    return rc != -1;
 }
 
 /* Send a full response to client with the content in resp_body. */
@@ -216,11 +216,18 @@ send_response(struct http_transaction *ta)
 {
     // add content-length.  All other headers must have already been set.
     add_content_length(&ta->resp_headers, ta->resp_body.len);
+    buffer_appends(&ta->resp_headers, CRLF);
 
-    if (!send_response_header(ta))
-        return false;
+    buffer_t response;
+    start_response(ta, &response);
 
-    return bufio_sendbuffer(ta->client->bufio, &ta->resp_body) != -1;
+    buffer_t *response_and_headers[3] = {
+        &response, &ta->resp_headers, &ta->resp_body
+    };
+
+    int rc = bufio_sendbuffers(ta->client->bufio, response_and_headers, 3);
+    buffer_delete(&response);
+    return rc != -1;
 }
 
 const int MAX_ERROR_LEN = 2048;

@@ -15,5 +15,6 @@ char * bufio_offset2ptr(struct bufio *self, size_t offset);
 size_t bufio_ptr2offset(struct bufio *self, char *ptr);
 ssize_t bufio_sendfile(struct bufio *self, int fd, off_t *off, size_t filesize);
 ssize_t bufio_sendbuffer(struct bufio *self, buffer_t *response);
+ssize_t bufio_sendbuffers(struct bufio *self, buffer_t **responses, size_t n);
 
 #endif /* _BUFIO_H */
