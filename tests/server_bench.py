@@ -411,7 +411,7 @@ else:
         # 200 or more yields 4 pts, 100 or more yields 2 points
         "login40": {"rps": [(320, 4), (160, 2)], "errors": 1},
         "login500": {"rps": [(800, 4), (500, 2)], "errors": 1},
-        "login10k": {"rps": [(650, 4), (450, 2)], "served": (0.80, 2)},
+        "login10k": {"rps": [(900, 4), (500, 2)], "served": (0.80, 2)},
         # these max out the 10GBps link, so these are MByte/s
         "wwwcsvt100": {"mbps": [(900, 4), (800, 2)]},
         "doom100": {"mbps": [(900, 4), (800, 2)]},
@@ -428,8 +428,8 @@ else:
                 if rps > requiredmin:
                     category += value
                     break
-            if test == "login10k" and rps > 1000:
-                extra = "+10 points extra credit for supporting more than 1 million rqs for login10k! If your error count isn't > 5,000..."
+            if test == "login10k" and rps > 1400:
+                extra = "+10 points extra credit for supporting more than 1.4 million rqs for login10k! If your error count isn't > 5,000..."
         if "mbps" in points:
             mbps = (
                 1e6
