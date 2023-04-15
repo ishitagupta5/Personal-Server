@@ -150,7 +150,7 @@ add_content_length(buffer_t *res, size_t len)
 static void
 start_response(struct http_transaction * ta, buffer_t *res)
 {
-    buffer_init(&response, 80);
+    buffer_init(res, 80);
 
     buffer_appends(res, "HTTP/1.0 ");
 
