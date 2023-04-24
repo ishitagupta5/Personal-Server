@@ -1643,7 +1643,6 @@ class Fallback(Doc_Print_Test_Case):
         self.hostname = hostname
         self.port = port
         self.files_nofallback = ['js/jquery.min.js', 'css/jquery-ui.min.css']
-        self.files_fallback = ['this_file_better_not_exist_or_the_test_will_fail', '']
 
     def setUp(self):
         """  Test Name: None -- setUp function\n\
@@ -1720,35 +1719,44 @@ class Fallback(Doc_Print_Test_Case):
     def test_html5_fallback_invalid_file(self):
         """ Test Name: test_html5_fallback_invalid_file
         Number Connections: N/A
-        Procedure: Checks if the server supports the HTML5 fallback to /index.html.
+        Procedure: Checks if the server supports the HTML5 fallback as per the
+                   policy for Svelte App.
+                   This policy says that / should return /index.html
+                   /x should return /x.html if it exists, and all other requests
+                   should return the special file /200.html
+
                    A failure here means that HTML5 fallback support does not work
                    (meaning, a request for /some_file_that_doesnt_exist does not get
-                   rerouted to /index.html)
+                   rerouted to /200.html)
         """
        
         # ----------------------- Retrieve /index.html ----------------------- #
         # first, make a GET request for /index.html
-        index_content = ""
-        index_url = "http://%s:%s/index.html" % (self.hostname, self.port)
-        try:
-            req = requests.Request('GET', index_url)
-            prepared_req = req.prepare()
-            prepared_req.url = index_url
-            response = self.session.send(prepared_req, timeout=2)
-        except requests.exceptions.RequestException:
-            raise AssertionError("The server did not respond within 2s")
-        
-        # check the response code - we expect 200 OK
-        if (response.status_code != requests.codes.ok):
-            raise AssertionError('Server responded with %d instead of 200 OK when requested with /%s' % 
-                                 (response.status_code, 'index.html'))
-        index_content = response.text
+        index_content = {}
+        names = ['index.html', 'public.html', '200.html']
+        for fname in names:
+            index_url = "http://%s:%s/%s" % (self.hostname, self.port, fname)
+            try:
+                req = requests.Request('GET', index_url)
+                prepared_req = req.prepare()
+                prepared_req.url = index_url
+                response = self.session.send(prepared_req, timeout=2)
+            except requests.exceptions.RequestException:
+                raise AssertionError("The server did not respond within 2s")
+
+            # check the response code - we expect 200 OK
+            if (response.status_code != requests.codes.ok):
+                raise AssertionError('Server responded with %d instead of 200 OK when requesting /%s' %
+                                     (response.status_code, fname))
+            index_content[fname] = response.text
          
         # --------------------------- Actual Test ---------------------------- #
         # do the following for each of the fallback-expected files
-        for f in self.files_fallback:
+        for path, expected in [('', 'index.html'),
+                               ('this_file_better_not_exist_or_the_test_will_fail', '200.html'),
+                               ('public', 'public.html')]:
             # build a url to the file
-            url = "http://%s:%s/%s" % (self.hostname, self.port, f)
+            url = "http://%s:%s/%s" % (self.hostname, self.port, path)
 
             # make a GET request for the file
             try:
@@ -1761,12 +1769,12 @@ class Fallback(Doc_Print_Test_Case):
             
             # check the response code - we expect 200 OK
             if (response.status_code != requests.codes.ok):
-                raise AssertionError('Server responded with %d instead of 200 OK when requested with /%s' %
-                                     (response.status_code, f))
+                raise AssertionError('Server responded with %d instead of 200 OK when requesting /%s' %
+                                     (response.status_code, path))
 
             # check the contents of the file - this SHOULD be index.html
-            if index_content not in response.text:
-                raise AssertionError('Server failed to return /index.html when requested with \'%s\'' % f)
+            if index_content[expected] != response.text:
+                raise AssertionError(f'Server failed to return the content of /{expected} when requesting \'%s\'' % path)
 
 class Authentication(Doc_Print_Test_Case):
     """
