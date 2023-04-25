@@ -409,12 +409,12 @@ else:
     #
     rubric = {
         # 200 or more yields 4 pts, 100 or more yields 2 points
-        "login40": {"rps": [(320, 4), (160, 2)], "errors": 1},
-        "login500": {"rps": [(800, 4), (500, 2)], "errors": 1},
-        "login10k": {"rps": [(900, 4), (500, 2)], "served": (0.80, 2)},
+        "login40": {"rps": [(510, 4), (255, 2)], "errors": 1},
+        "login500": {"rps": [(1600, 4), (800, 2)], "errors": 1},
+        "login10k": {"rps": [(1150, 4), (600, 2)], "served": (0.80, 2)},
         # these max out the 10GBps link, so these are MByte/s
-        "wwwcsvt100": {"mbps": [(900, 4), (800, 2)]},
-        "doom100": {"mbps": [(900, 4), (800, 2)]},
+        "wwwcsvt100": {"mbps": [(1000, 4), (900, 2)]},
+        "doom100": {"mbps": [(1000, 4), (900, 2)]},
     }
     extra = ""
     for test in ran:

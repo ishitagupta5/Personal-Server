@@ -292,7 +292,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
 
     char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
     // The code below is vulnerable to an attack.  Can you see
-    // which?  Fix it to avoid indirect object reference (IDOR) attacks.
+    // which?  Fix it to avoid insecure direct object reference (IDOR) attacks.
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
 
     if (access(fname, R_OK)) {
