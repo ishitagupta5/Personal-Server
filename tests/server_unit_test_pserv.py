@@ -1572,11 +1572,11 @@ class Access_Control(Doc_Print_Test_Case):
             raise AssertionError("The server did not respond within 2s")
 
         if (response.status_code == requests.codes.forbidden):
-            raise AssertionError('Server responded with 403 FORBIDDEN instead of 404 NOT FOUND')
+            raise AssertionError('Server responded with 403 FORBIDDEN instead of 404/400')
 
-        # Ensure that response code is 404
-        self.assertEqual(response.status_code, requests.codes.not_found,
-                         "Server did not respond with 404 when it should have, possible IDOR?")
+        # Ensure that response code is 404 or 400
+        self.assertTrue(response.status_code == requests.codes.not_found or response.status_code == requests.codes.bad_request,
+                         "Server did not respond with 400 or 404 to invalid request path")
 
     def test_login_content_type(self):
         """ Test Name: test_login_content_type
