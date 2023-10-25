@@ -1028,6 +1028,51 @@ class Single_Conn_Bad_Case(Doc_Print_Test_Case):
         self.assertEqual(response.status_code, requests.codes.ok,
                          "Server failed to respond with private file despite being authenticated.")
 
+    def test_auth_many_cookies(self):
+        """ Test Name: test_auth_many_cookies
+        Number Connections: N/A
+        Procedure: Sends a valid cookie mixed in with several other, invalid cookies.
+                   This is somewhat more realistic to how a browser would send the request, since
+                   it keeps track of many cookies. A failure here indicates incorrect parsing
+                   of the semicolon delimited Cookie header list.
+        """
+        # Login using the default credentials
+        try:
+            response = self.session.post('http://%s:%s/api/login' % (self.hostname, self.port),
+                                         json={'username': self.username, 'password': self.password},
+                                         timeout=2)
+        except requests.exceptions.RequestException:
+            raise AssertionError("The server did not respond within 2s")
+
+        # Ensure that the user is authenticated
+        self.assertEqual(response.status_code, requests.codes.ok, "Authentication failed.")
+
+        # Define the private URL to get
+        url = 'http://%s:%s/%s' % (self.hostname, self.port, self.private_file)
+
+        # find the cookie returned by the server (its name and value)
+        cookie_dict = self.session.cookies.get_dict()        # convert cookies to dict
+        self.assertEqual(len(cookie_dict), 1, "Server did not return an authentication token.")
+        valid, val = list(cookie_dict.items())[0]
+
+        # add a few "bad cookie" key-value pairs
+        # The cookie set gets sorted by time added and codepoint, so we'll clear, then add cookie
+        # names at the bounds of ascii to catch esoteric cookie names.
+        self.session.cookies.clear()
+        self.session.cookies.set("!!!!!", "a.b.c") 
+        self.session.cookies.set(valid, val)
+        self.session.cookies.set("~~~~~", "x.y.z")
+
+        # Try to get the private file
+        try:
+            response = self.session.get(url, timeout=2)
+        except requests.exceptions.RequestException:
+            raise AssertionError("The server did not respond within 2s")
+
+        # Ensure that access is ok
+        self.assertEqual(response.status_code, requests.codes.ok,
+                         "Server failed to respond with private file despite being authenticated.")
+
 
 class Multi_Conn_Sequential_Case(Doc_Print_Test_Case):
     """
@@ -2950,4 +2995,3 @@ process.
                   "Please examine the errors listed above.\n")
 
         print_points(minreq_score, extra_score, robustness_score, ipv6_score, auth_score, fallback_score, video_score)
-
