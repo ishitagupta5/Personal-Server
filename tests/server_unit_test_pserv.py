@@ -27,6 +27,9 @@ if script_dir == "":
     script_dir = "."
 script_dir = os.path.realpath(script_dir)
 
+USERNAME = 'user2023'
+PASSWORD = 'passwordf23'
+
 def encode(s):
     return s.encode('utf-8')
 
@@ -339,8 +342,8 @@ class Single_Conn_Malicious_Case(Doc_Print_Test_Case):
         self.hostname = hostname
         self.port = port
         self.private_file = 'private/secure.html'
-        self.username = 'user0'
-        self.password = 'thepassword'
+        self.username = USERNAME
+        self.password = PASSWORD
 
         # Prepare the a_string for query checks
         self.a_string = "aaaaaaaaaaaaaaaa"
@@ -731,9 +734,9 @@ class Single_Conn_Bad_Case(Doc_Print_Test_Case):
         self.port = port
  
         N = 10
-        self.username = 'user0'
+        self.username = USERNAME
         self.invalid_username = ''.join(random.choice(string.ascii_lowercase + string.ascii_uppercase) for _ in range(N))
-        self.password = 'thepassword'
+        self.password = PASSWORD
         self.invalid_password = ''.join(random.choice(string.ascii_lowercase + string.ascii_uppercase) for _ in range(N))
         self.private_file = 'private/secure.html'
 
@@ -1273,8 +1276,8 @@ class Access_Control(Doc_Print_Test_Case):
         self.public_file_2 = 'js/jquery.min.js'
         self.public_file_3 = 'css/jquery-ui.min.css'
         self.private_file = 'private/secure.html'
-        self.username = 'user0'
-        self.password = 'thepassword'
+        self.username = USERNAME
+        self.password = PASSWORD
         self.invalid_password = 'wrongpassword'
 
     def setUp(self):
@@ -1837,8 +1840,8 @@ class Authentication(Doc_Print_Test_Case):
         self.port = port
         self.public_file = 'index.html'
         self.private_file = 'private/secure.html'
-        self.username = 'user0'
-        self.password = 'thepassword'
+        self.username = USERNAME
+        self.password = PASSWORD
         self.incorrect_password = 'wrongword'
         self.sleep_time = 8 if run_slow else 4
         self.current_year = datetime.now().year
@@ -2031,7 +2034,7 @@ class Authentication(Doc_Print_Test_Case):
 
             for cookie in self.sessions[i].cookies:
                 try:
-                    self.assertEquals(cookie.path, "/", "Cookie path should be /")
+                    self.assertEqual(cookie.path, "/", "Cookie path should be /")
                     self.assertTrue("HttpOnly" in cookie._rest, "Cookie is not http only.")
                     maxage = cookie.expires - time.mktime(datetime.now().timetuple())
                     if abs(maxage - int(auth_token_expiry)) > 1:
