@@ -1,8 +1,12 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { getUser } from '$lib/auth';
+
+// Create a custom store with a method to set the `fetch` function
+export const fetchStore = writable(undefined);
 
 function createUser() {
 	const { subscribe, set } = writable(undefined, function start(set) {
+		const fetch = get(fetchStore);
 		getUser(fetch).then((user) => set(user));
 		return () => {};
 	});

@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <fcntl.h>
+#include <assert.h>
 #include <linux/limits.h>
 
 #include "http.h"
@@ -152,6 +153,10 @@ start_response(struct http_transaction * ta, buffer_t *res)
 {
     buffer_init(res, 80);
 
+    /* Hint: you must change this as you implement HTTP/1.1.
+     * Respond with the highest version the client supports
+     * as indicated in the version field of the request.
+     */
     buffer_appends(res, "HTTP/1.0 ");
 
     switch (ta->resp_status) {
@@ -281,6 +286,7 @@ guess_mime_type(char *filename)
     if (!strcasecmp(suffix, ".js"))
         return "text/javascript";
 
+    /* hint: you need to add support for (at least) .css, .svg, and .mp4 */
     return "text/plain";
 }
 
@@ -290,9 +296,10 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
 {
     char fname[PATH_MAX];
 
+    assert (basedir != NULL || !!!"No base directory. Did you specify -R?");
     char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
     // The code below is vulnerable to an attack.  Can you see
-    // which?  Fix it to avoid insecure direct object reference (IDOR) attacks.
+    // which?  Fix it to avoid indirect object reference (IDOR) attacks.
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
 
     if (access(fname, R_OK)) {

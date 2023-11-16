@@ -8,9 +8,9 @@ const config = {
 		// See https://kit.svelte.dev/docs/adapters for more information about adapters.
 		adapter: adapter({
 			// if fallback is given, index.html will be empty on SSR
-            fallback: "200.html"
+			fallback: '200.html'
 			// if it is not given, index.html will be served as HTML5 history fallback
-        })
+		})
 	}
 };
 

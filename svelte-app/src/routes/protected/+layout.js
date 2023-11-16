@@ -6,3 +6,4 @@ export async function load(loadArgs) {
 }
 
 export const prerender = false;
+export const ssr = false;

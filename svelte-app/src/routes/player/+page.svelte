@@ -9,7 +9,7 @@
 		DropdownMenu,
 		DropdownItem
 	} from 'sveltestrap';
-	import VideoPlayer from 'svelte-video-player';
+	import VideoPlayer from '$lib/svelte-video-player';
 
 	function handleSubmit(event) {
 		event.preventDefault();

@@ -32,7 +32,7 @@ bool silent_mode = false;
 int token_expiration_time = 24 * 60 * 60;
 
 // root from which static files are served
-char * server_root;
+char *server_root;
 
 /*
  * A non-concurrent, iterative server that serves one client at a time.

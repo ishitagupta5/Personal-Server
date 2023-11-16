@@ -6,7 +6,7 @@ export const success = (m) =>
 		theme: {
 			'--toastBackground': 'green',
 			'--toastColor': 'white',
-			'--toastBarBackground': 'olive',
+			'--toastBarBackground': 'olive'
 		}
 	});
 

@@ -18,4 +18,4 @@ export const menus = {
 	]
 };
 
-export const branding = 'CS3214 Demo App 2023';
+export const branding = 'CS3214 Demo App Fall 2023';

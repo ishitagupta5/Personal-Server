@@ -1,4 +1,5 @@
 <script>
+	import { fade } from 'svelte/transition';
 	import { SvelteToast } from '@zerodevx/svelte-toast';
 	import { invalidateAll } from '$app/navigation';
 	import { Nav, Collapse, Navbar, NavbarToggler, NavItem, NavLink, NavbarBrand } from 'sveltestrap';
@@ -16,8 +17,7 @@
 <svelte:head>
 	<link href="css/bootswatch-simplex.min.css" rel="stylesheet" type="text/css" />
 </svelte:head>
-<svelte:window on:visibilitychange={() => window.visibilityState === 'visible'
-										  && invalidateAll} />
+<svelte:window on:visibilitychange={() => window.visibilityState === 'visible' && invalidateAll} />
 
 <div>
 	<Navbar color="light" light expand="md">
@@ -55,7 +55,7 @@
 			</Nav>
 		</Collapse>
 	</Navbar>
-	<div class="container-fluid marketing">
+	<div class="container-fluid marketing" in:fade|local out:fade|local>
 		<slot />
 	</div>
 </div>
