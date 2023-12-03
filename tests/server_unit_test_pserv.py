@@ -712,6 +712,50 @@ class Single_Conn_Malicious_Case(Doc_Print_Test_Case):
             if response.status_code == requests.codes.ok:
                 raise AssertionError("The server served a private file despite not being authenticated.")
 
+    def test_auth_embedded_cookie(self):
+        """ Test Name: test_auth_embedded_cookie
+        Number Connections: N/A
+        Procedure: Sends cookies that embed the name of the login cookie in
+        their value. A failure here means the server is not properly iterating
+        the list of cookies (e.g. assuming strstr will find the right cookie).
+        Example: `Cookie: fake_token=auth_token=bad; auth_token=realJWT`
+        """
+        # Login using the default credentials
+        try:
+            response = self.session.post('http://%s:%s/api/login' % (self.hostname, self.port),
+                                         json={'username': self.username, 'password': self.password},
+                                         timeout=2)
+        except requests.exceptions.RequestException:
+            raise AssertionError("The server did not respond within 2s")
+
+        # Ensure that the user is authenticated
+        self.assertEqual(response.status_code, requests.codes.ok, "Authentication failed.")
+
+        # Get the name of the valid cookie
+        self.assertEqual(1, len(response.cookies), "Your server response has too many cookies in it.")
+        cookie = list(response.cookies)[0]
+
+        # Craft a malicious cookie and put it before the login cookie
+        self.session.cookies.set("!!!!A_bad_cookie", f"prefix_{cookie.name}=yougotthebadcookie")
+
+        # Define the private URL to get
+        url = 'http://%s:%s/%s' % (self.hostname, self.port, self.private_file)
+
+        # Use the session cookie to get the private file
+        response = self.session.get(url, timeout=2)
+        self.assertEqual(response.status_code, requests.codes.ok,
+                         "Server failed to respond with private file despite being authenticated.")
+
+        # Prepend garbage to the correct cookie
+        # Makes sure they don't strstr within each cookie by having an invalid name
+        self.session.cookies.clear()
+        self.session.cookies.set(f"prefix_{cookie.name}", cookie.value)
+        
+        # Should not be able to get the private file with the malformed cookie
+        response = self.session.get(url, timeout=2)
+        if response.status_code == requests.codes.ok:
+            raise AssertionError("The server served a private file despite not being authenticated.")
+
 
 ##############################################################################
 ## Class: Single_Conn_Bad_Case
