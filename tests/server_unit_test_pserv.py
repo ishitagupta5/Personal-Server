@@ -12,7 +12,7 @@
 
 import atexit, base64, errno, getopt, json, multiprocessing, os
 import random, requests, signal, socket, struct, string, subprocess
-import sys, time, traceback, unittest, re
+import sys, time, traceback, unittest, re, os
 
 from datetime import datetime
 from fractions import Fraction as F
@@ -27,8 +27,9 @@ if script_dir == "":
     script_dir = "."
 script_dir = os.path.realpath(script_dir)
 
-USERNAME = 'user2023'
-PASSWORD = 'passwordf23'
+USERNAME = os.getenv('USER_NAME', default = 'user')
+PASSWORD = os.getenv('USER_PASS', default = 'nbas;&ad#hkw=lhsdkjfha')
+SECRET = os.getenv('SECRET', default = 'a real secret')
 
 def encode(s):
     return s.encode('utf-8')
@@ -662,7 +663,7 @@ class Single_Conn_Malicious_Case(Doc_Print_Test_Case):
         # sure they are invalid)
         cookies = [
             ["IDMSESSID", "9DD957C450BBCFE9D75022A05DC71D0E701FE23AF0DEE777090831C9FFD087FF0EE5704771BA11D02B3FA5CC13F20B4F8A6758A02768E160AE1E100A8D4BECCE"],
-            ["auth_token", "[\"hokiebird\"\054 \"Hokie Bird\"].Yhy5-g.HXxh5WxmTawBv_LHPaTLnXNkYiI|5b9df2848955b572910a6ff3d2c98d27febbe6a8949c18cde52c8c11c91ed5437f40accae8f8b77a41e335e83556a3670d5f5178d8ddd4f8eb83e1a82974ce4a"],
+            ["auth_jwt_token", "[\"hokiebird\"\054 \"Hokie Bird\"].Yhy5-g.HXxh5WxmTawBv_LHPaTLnXNkYiI|5b9df2848955b572910a6ff3d2c98d27febbe6a8949c18cde52c8c11c91ed5437f40accae8f8b77a41e335e83556a3670d5f5178d8ddd4f8eb83e1a82974ce4a"],
             ["session", ".eJwlzsFKw0AQgOFXKXuuZXczm93psV4qFBEs2GAkzM7OJEVNIaG2IL67hV7_e_L9mk4nmQezVvqaZWm6YzFrQ947cJoLRslQAaDW3hlSql2JZKUUT5m9S1LFCEKRMaqVKFqSg0hellofmStWUATRANYGmzmRdRA4E6KU2musEFXZ5aBY2hiyoGRukPMs013z3hq-zMO571uzXLTm8TSOp2xxei8fq2ZowkO_2h6uQ3i7fu_plvnpdtsX2u_Gw_Nnc3zyf_8CpUfl.Yjo3NQ.m-n22sd9bMNXyvtXpIS6dZ85Cv4"]
         ]
 
@@ -755,6 +756,43 @@ class Single_Conn_Malicious_Case(Doc_Print_Test_Case):
         response = self.session.get(url, timeout=2)
         if response.status_code == requests.codes.ok:
             raise AssertionError("The server served a private file despite not being authenticated.")
+
+    def test_auth_long_header(self):
+        """ Test Name: test_auth_long_header
+        Number Connections: N/A
+        Procedure: Sends a valid request with a very long header that causes
+        a reallocation of the receive buffer.
+        """
+        # Login using the default credentials
+        try:
+            response = self.session.post('http://%s:%s/api/login' % (self.hostname, self.port),
+                                         json={'username': self.username, 'password': self.password},
+                                         timeout=2)
+        except requests.exceptions.RequestException:
+            raise AssertionError("The server did not respond within 2s")
+
+        # Ensure that the user is authenticated
+        self.assertEqual(response.status_code, requests.codes.ok, "Authentication failed.")
+
+        # Define the private URL to get
+        url = 'http://%s:%s/%s' % (self.hostname, self.port, self.private_file)
+
+        #
+        # Prepare a long header and ensure that it will be sent after the Cookie
+        # header.  This is likely to trigger a reallocation in the provided base code.
+        # If bufio_offset2ptr/bufio_ptr2offset aren't used correctly, this will
+        # trigger a use-after-free error valgrind should pick up on.
+        # Unfortunately, it may not reliably crash the server.
+        #
+        request = requests.Request('GET', url, 
+                headers = {'X-Custom-Long': '?' * 50000}).prepare()
+        request.prepare_cookies(self.session.cookies);
+        request.headers = dict(sorted(list(request.headers.items())))
+
+        # Use the session cookie to get the private file
+        response = self.session.send(request, timeout=2) 
+        self.assertEqual(response.status_code, requests.codes.ok,
+                         "Server failed to respond with private file despite being authenticated.")
 
 
 ##############################################################################
@@ -2052,8 +2090,8 @@ class Authentication(Doc_Print_Test_Case):
     def test_jwt_claims_cookie(self):
         """ Test Name: test_jwt_claims_cookie
         Number Connections: N/A
-        Procedure: Checks if the JWT cookie has the right claims set.
-                   An error here means that some of the claims required are
+        Procedure: Checks if the JWT cookie has the right attributes and claims set.
+                   An error here means that some of the attributes or claims required are
                    not being set correctly.
         """
         # Create multiple sessions
@@ -2074,32 +2112,30 @@ class Authentication(Doc_Print_Test_Case):
             self.assertEqual(response.status_code, requests.codes.ok, "Authentication failed.")
 
             # Get the cookie value from the response
-            found_cookie = False
-
-            for cookie in self.sessions[i].cookies:
-                try:
-                    self.assertEqual(cookie.path, "/", "Cookie path should be /")
-                    self.assertTrue("HttpOnly" in cookie._rest, "Cookie is not http only.")
-                    maxage = cookie.expires - time.mktime(datetime.now().timetuple())
-                    if abs(maxage - int(auth_token_expiry)) > 1:
-                        raise AssertionError(f"Cookie's Max-Age is {maxage} should be {auth_token_expiry}")
-
-                    encoded_data = cookie.value.split('.')[1]
-
-                    # Try to decode the payload
-                    decoded_payload = decode_base64(encoded_data)
-
-                    # Get decoded_payload as JSON
-                    data = json.loads(decoded_payload)
-
-                    found_cookie = True
-
-                except (IndexError, ValueError):
-                    continue
+            cookie_name = 'auth_jwt_token'
+            found_cookie = cookie_name in self.sessions[i].cookies
 
             # If cookie is None, it means no cookie has been set
             if not found_cookie:
                 raise AssertionError('No valid cookie found.')
+
+            # the cookie jar's .get() method cannot be used here
+            cookie = next((c for c in self.sessions[i].cookies if c.name == cookie_name), None)
+
+            self.assertEqual(cookie.path, "/", "Cookie path should be /")
+            self.assertTrue("HttpOnly" in cookie._rest, "Cookie is not http only.")
+            self.assertTrue(cookie._rest['SameSite'].lower() == 'lax', "Cookie is not SameSite=Lax.")
+            maxage = cookie.expires - time.mktime(datetime.now().timetuple())
+            if abs(maxage - int(auth_token_expiry)) > 1:
+                raise AssertionError(f"Cookie's Max-Age is {maxage} should be {auth_token_expiry}")
+
+            encoded_data = cookie.value.split('.')[1]
+
+            # Try to decode the payload
+            decoded_payload = decode_base64(encoded_data)
+
+            # Get decoded_payload as JSON
+            data = json.loads(decoded_payload)
 
             # Verify that the JWT contains 'iat'
             assert 'iat' in data, "Could not find the claim 'iat' in the JSON object."
@@ -2771,6 +2807,10 @@ if __name__ == '__main__':
     def start_server(preargs = [], postargs = []):
         args = preargs + [server_path, "-p", str(port), "-R", base_dir] + postargs
         output_file = None
+        env = dict(os.environ)
+        for variable, value in [('USER_NAME', USERNAME), ('USER_PASS', PASSWORD), ('SECRET', SECRET)]:
+            if variable not in env:
+                env[variable] = value
 
         # Open the output file if possible
         if output_file_name is not None:
@@ -2781,15 +2821,15 @@ if __name__ == '__main__':
 
         if output_file is not None:
             # Open the server on this machine
-            server = subprocess.Popen(args, preexec_fn = make_new_pgrp,
+            server = subprocess.Popen(args, preexec_fn=make_new_pgrp, env=env,
                                       stdout=output_file, stderr=subprocess.STDOUT)
         elif verbose == True:
             # open the server with stdout unspecified (by default it will go to
             # the terminal).
-            server = subprocess.Popen(args, preexec_fn = make_new_pgrp)
+            server = subprocess.Popen(args, preexec_fn=make_new_pgrp, env=env)
         else:
             # if the above fail, put stdout and stderr into /dev/null
-            server = subprocess.Popen(args, preexec_fn = make_new_pgrp,
+            server = subprocess.Popen(args, preexec_fn=make_new_pgrp, env=env,
                                       stdout=subprocess.DEVNULL,
                                       stderr=subprocess.DEVNULL)
 

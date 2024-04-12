@@ -1,6 +1,6 @@
 <script>
-	import { Form, FormGroup, Label, Input, Button, ButtonToolbar } from 'sveltestrap';
-	import { Alert } from 'sveltestrap';
+	import { Form, FormGroup, Label, Input, Button, ButtonToolbar } from '@sveltestrap/sveltestrap';
+	import { Alert } from '@sveltestrap/sveltestrap';
 	let username = 'da user';
 	let password = 'thepassword';
 	export let onSubmit;

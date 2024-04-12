@@ -1,6 +1,6 @@
 <script>
 	import { version } from '$app/environment';
-	import { Container, Row, Col } from 'sveltestrap';
+	import { Container, Row, Col } from '@sveltestrap/sveltestrap';
 	const logo = '/images/svelte-logo.svg';
 	const cs3214 = '/images/cs3214.png';
 </script>

@@ -1,6 +1,12 @@
 <script>
 	import { user } from '$lib/userstore';
-	import { NavLink, Dropdown, DropdownToggle, DropdownMenu, DropdownItem } from 'sveltestrap';
+	import {
+		NavLink,
+		Dropdown,
+		DropdownToggle,
+		DropdownMenu,
+		DropdownItem
+	} from '@sveltestrap/sveltestrap';
 	export let dropdowns;
 	function shouldShow(dropdown, user) {
 		if (!dropdown.onlyifauthenticated) return true;

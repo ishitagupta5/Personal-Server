@@ -8,8 +8,7 @@ export async function getUser(fetch) {
 		const res = await fetch(`/api/login`);
 		const user = await res.json();
 		const userAsString = JSON.stringify(user);
-		if (userAsString != lastUser)
-			success(`Server said: ${userAsString}`);
+		if (userAsString != lastUser) success(`Server said: ${userAsString}`);
 
 		lastUser = userAsString;
 		if (!('sub' in user)) return null;

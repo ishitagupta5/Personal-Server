@@ -2,7 +2,15 @@
 	import { fade } from 'svelte/transition';
 	import { SvelteToast } from '@zerodevx/svelte-toast';
 	import { invalidateAll } from '$app/navigation';
-	import { Nav, Collapse, Navbar, NavbarToggler, NavItem, NavLink, NavbarBrand } from 'sveltestrap';
+	import {
+		Nav,
+		Collapse,
+		Navbar,
+		NavbarToggler,
+		NavItem,
+		NavLink,
+		NavbarBrand
+	} from '@sveltestrap/sveltestrap';
 	import DropDowns from '$lib/dropdown.svelte';
 	import { menus, branding } from '$lib/config';
 	import { user } from '$lib/userstore';
@@ -29,7 +37,7 @@
 			on:update={(event) => (navbarOpen = event.detail.isOpen)}
 			navbar
 		>
-			<Nav class="mr-auto" navbar>
+			<Nav class="me-auto" navbar>
 				{#each menus.topbar as item (item.path)}
 					<NavItem>
 						<NavLink href={item.path}>
@@ -41,7 +49,7 @@
 					<DropDowns dropdowns={menus.leftdropdowns} />
 				{/if}
 			</Nav>
-			<Nav class="ml-auto" navbar>
+			<Nav class="ms-auto" navbar>
 				<DropDowns dropdowns={menus.rightdropdowns} />
 				{#if $user}
 					<NavItem>
@@ -55,7 +63,7 @@
 			</Nav>
 		</Collapse>
 	</Navbar>
-	<div class="container-fluid marketing" in:fade|local out:fade|local>
+	<div class="container-fluid marketing" in:fade out:fade>
 		<slot />
 	</div>
 </div>

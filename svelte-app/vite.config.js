@@ -6,15 +6,15 @@ const backend = 'http://localhost:10001';
 
 export default defineConfig({
 	plugins: [sveltekit(), splitVendorChunkPlugin()],
-    // as per https://rollupjs.org/configuration-options/#output-manualchunks
-    // and https://vitejs.dev/guide/build.html#chunking-strategy
-    build: {
-      rollupOptions: {
-        output: {
-          manualChunks: () => 'bundle',
-        },
-      },
-    },
+	// as per https://rollupjs.org/configuration-options/#output-manualchunks
+	// and https://vitejs.dev/guide/build.html#chunking-strategy
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: () => 'bundle'
+			}
+		}
+	},
 	ssr: {
 		noExternal: ['@popperjs/core']
 	},

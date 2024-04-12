@@ -1,17 +1,21 @@
 
 # change this number as per instruction to avoid conflicts.
 PORT=10000
-
 HOST=localhost
 
 # to test against a working implementation (and see the intended responses)
 # change this variable, e.g.
 #URL=http://hazelnut.rlogin:12345
+# adjust these to match your server's username/password
+USER_NAME=users24
+USER_PASS=spring24
 URL=http://${HOST}:${PORT}
 
 echo Your server should be running on host $HOST port $PORT
 echo You may need to start it with, e.g.
-echo ./server -R ../root -p $PORT
+echo
+echo USER_NAME=${USER_NAME} USER_PASS=${USER_PASS} SECRET=zzzz ./server -R ../root -p $PORT
+echo 
 echo This script is not intended as an automatic test.
 echo You should use it to understand the required functionality
 echo of your server by examining the individual transactions
@@ -28,7 +32,7 @@ COOKIEJAR=cookies.txt
 curl -v -H "Content-Type: application/json" \
      -c ${COOKIEJAR} \
      -X POST \
-     -d '{"username":"user2023","password":"passwordf23"}' \
+     -d "{\"username\":\"${USER_NAME}\",\"password\":\"${USER_PASS}\"}" \
     ${URL}/api/login
 
 # this should succeed if the password was correct

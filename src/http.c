@@ -191,14 +191,17 @@ start_response(struct http_transaction * ta, buffer_t *res)
         buffer_appends(res, "503 Service Unavailable");
         break;
     case HTTP_INTERNAL_ERROR:
-    default:
         buffer_appends(res, "500 Internal Server Error");
+        break;
+    default:  /* else */
+        buffer_appends(res, "500 This is not a valid status code."
+                "Did you forget to set resp_status?");
         break;
     }
     buffer_appends(res, CRLF);
 }
 
-/* Send response headers to client */
+/* Send response headers to client in a single system call. */
 static bool
 send_response_header(struct http_transaction *ta)
 {
@@ -286,7 +289,8 @@ guess_mime_type(char *filename)
     if (!strcasecmp(suffix, ".js"))
         return "text/javascript";
 
-    /* hint: you need to add support for (at least) .css, .svg, and .mp4 */
+    /* hint: you need to add support for (at least) .css, .svg, and .mp4
+     * You can grep /etc/mime.types for the correct types */
     return "text/plain";
 }
 
@@ -302,7 +306,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     // which?  Fix it to avoid indirect object reference (IDOR) attacks.
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
 
-    if (access(fname, R_OK)) {
+    if (access(fname, R_OK) == -1) {
         if (errno == EACCES)
             return send_error(ta, HTTP_PERMISSION_DENIED, "Permission denied.");
         else
@@ -312,6 +316,9 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     // Determine file size
     struct stat st;
     int rc = stat(fname, &st);
+    /* Remove this line once your code handles this case */
+    assert (!(html5_fallback && rc == 0 && S_ISDIR(st.st_mode)));
+
     if (rc == -1)
         return send_error(ta, HTTP_INTERNAL_ERROR, "Could not stat file.");
 

@@ -1,6 +1,6 @@
 <script>
-	import { Col, Container, Row } from 'sveltestrap';
-	import { Form, FormGroup, Label, Button, ButtonToolbar } from 'sveltestrap';
+	import { Col, Container, Row } from '@sveltestrap/sveltestrap';
+	import { Form, FormGroup, Label, Button, ButtonToolbar } from '@sveltestrap/sveltestrap';
 	import {
 		Input,
 		Spinner,
@@ -8,7 +8,7 @@
 		DropdownToggle,
 		DropdownMenu,
 		DropdownItem
-	} from 'sveltestrap';
+	} from '@sveltestrap/sveltestrap';
 	import VideoPlayer from '$lib/svelte-video-player';
 
 	function handleSubmit(event) {
@@ -71,16 +71,18 @@
 			</Container>
 		</Form>
 	</Row>
-	<Row class="mt-3">
-		<Col>
-			<p>
-				If your implementation of range byte requests works, you should be able to stream MP4 from
-				your server.
-			</p>
-			<p>Currently playing <tt>{playUrl}</tt></p>
-			<div style="max-width: 800px; margin: 0 auto;" bind:this={player}>
-				<VideoPlayer source={playUrl} />
-			</div>
-		</Col>
-	</Row>
+	{#if playUrl}
+		<Row class="mt-3">
+			<Col>
+				<p>
+					If your implementation of range byte requests works, you should be able to stream MP4 from
+					your server.
+				</p>
+				<p>Currently playing <tt>{playUrl}</tt></p>
+				<div style="max-width: 800px; margin: 0 auto;" bind:this={player}>
+					<VideoPlayer source={playUrl} />
+				</div>
+			</Col>
+		</Row>
+	{/if}
 </Container>

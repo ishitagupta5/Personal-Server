@@ -4,7 +4,7 @@ import { fetchStore } from '$lib/userstore.js';
 export async function load(loadArgs) {
 	const { fetch } = loadArgs;
 	fetchStore.set(fetch);
-    return { }
+	return {};
 }
 
 export const prerender = true;

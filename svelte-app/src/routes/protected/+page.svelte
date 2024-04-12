@@ -1,5 +1,5 @@
 <script>
-	import { Container, Row } from 'sveltestrap';
+	import { Container, Row } from '@sveltestrap/sveltestrap';
 	import { user } from '$lib/userstore';
 </script>
 

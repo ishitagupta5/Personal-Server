@@ -1,6 +1,6 @@
 <script>
 	import { user } from '$lib/userstore';
-	import { Container, Row, Col, Card, CardHeader, CardBody } from 'sveltestrap';
+	import { Container, Row, Col, Card, CardHeader, CardBody } from '@sveltestrap/sveltestrap';
 	import LoginForm from './loginform.svelte';
 	import { goto } from '$app/navigation';
 	import { success } from '$lib/toast.js';

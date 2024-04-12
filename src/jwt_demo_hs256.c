@@ -3,6 +3,7 @@
  *
  * @author gback, CS 3214, Spring 2018, updated Spring 2021
  * Added Jansson demo Fall'22
+ * Added env variable demo Spring'24
  *
  * I included the necessary free() operations here which
  * are needed in a long-running server.
@@ -15,8 +16,6 @@
 #include <errno.h>
 #include <jansson.h>
 
-static const char * NEVER_EMBED_A_SECRET_IN_CODE = "supa secret";
-
 static void 
 die(const char *msg, int error)
 {
@@ -25,7 +24,7 @@ die(const char *msg, int error)
 }
 
 int
-main()
+main(int ac, char *av[])
 {
     jwt_t *mytoken;
 
@@ -46,9 +45,13 @@ main()
     if (rc)
         die("jwt_add_grant exp", rc);
 
-    rc = jwt_set_alg(mytoken, JWT_ALG_HS256, 
-            (unsigned char *)NEVER_EMBED_A_SECRET_IN_CODE, 
-            strlen(NEVER_EMBED_A_SECRET_IN_CODE));
+    char *key = getenv("SECRET");
+    if (key == NULL) {
+        fprintf(stderr, "please set the `SECRET' environment variable, e.g., run with\n"
+                        "SECRET=.... %s\n", av[0]);
+        exit (EXIT_FAILURE);
+    }
+    rc = jwt_set_alg(mytoken, JWT_ALG_HS256, (unsigned char *)key, strlen(key));
     if (rc)
         die("jwt_set_alg", rc);
 
@@ -62,12 +65,10 @@ main()
         die("jwt_encode_str", ENOMEM);
 
     jwt_free(mytoken);
-    printf("encoded as %s\nTry entering this at jwt.io\n", encoded);
+    printf("encoded as %s\n(you may try entering the above at jwt.io)\n", encoded);
 
     jwt_t *ymtoken;
-    rc = jwt_decode(&ymtoken, encoded, 
-            (unsigned char *)NEVER_EMBED_A_SECRET_IN_CODE, 
-            strlen(NEVER_EMBED_A_SECRET_IN_CODE));
+    rc = jwt_decode(&ymtoken, encoded, (unsigned char *)key, strlen(key));
     if (rc)
         die("jwt_decode", rc);
 
