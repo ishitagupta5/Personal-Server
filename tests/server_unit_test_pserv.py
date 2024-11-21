@@ -27,8 +27,8 @@ if script_dir == "":
     script_dir = "."
 script_dir = os.path.realpath(script_dir)
 
-USERNAME = os.getenv('USER_NAME', default = 'user')
-PASSWORD = os.getenv('USER_PASS', default = 'nbas;&ad#hkw=lhsdkjfha')
+USERNAME = os.getenv('USER_NAME', default = 'cs3214')
+PASSWORD = os.getenv('USER_PASS', default = 'kjhlAOF)*@$HL')
 SECRET = os.getenv('SECRET', default = 'a real secret')
 
 def encode(s):
@@ -663,7 +663,7 @@ class Single_Conn_Malicious_Case(Doc_Print_Test_Case):
         # sure they are invalid)
         cookies = [
             ["IDMSESSID", "9DD957C450BBCFE9D75022A05DC71D0E701FE23AF0DEE777090831C9FFD087FF0EE5704771BA11D02B3FA5CC13F20B4F8A6758A02768E160AE1E100A8D4BECCE"],
-            ["auth_jwt_token", "[\"hokiebird\"\054 \"Hokie Bird\"].Yhy5-g.HXxh5WxmTawBv_LHPaTLnXNkYiI|5b9df2848955b572910a6ff3d2c98d27febbe6a8949c18cde52c8c11c91ed5437f40accae8f8b77a41e335e83556a3670d5f5178d8ddd4f8eb83e1a82974ce4a"],
+            ["auth_jwt", "[\"hokiebird\"\054 \"Hokie Bird\"].Yhy5-g.HXxh5WxmTawBv_LHPaTLnXNkYiI|5b9df2848955b572910a6ff3d2c98d27febbe6a8949c18cde52c8c11c91ed5437f40accae8f8b77a41e335e83556a3670d5f5178d8ddd4f8eb83e1a82974ce4a"],
             ["session", ".eJwlzsFKw0AQgOFXKXuuZXczm93psV4qFBEs2GAkzM7OJEVNIaG2IL67hV7_e_L9mk4nmQezVvqaZWm6YzFrQ947cJoLRslQAaDW3hlSql2JZKUUT5m9S1LFCEKRMaqVKFqSg0hellofmStWUATRANYGmzmRdRA4E6KU2musEFXZ5aBY2hiyoGRukPMs013z3hq-zMO571uzXLTm8TSOp2xxei8fq2ZowkO_2h6uQ3i7fu_plvnpdtsX2u_Gw_Nnc3zyf_8CpUfl.Yjo3NQ.m-n22sd9bMNXyvtXpIS6dZ85Cv4"]
         ]
 
@@ -2112,7 +2112,7 @@ class Authentication(Doc_Print_Test_Case):
             self.assertEqual(response.status_code, requests.codes.ok, "Authentication failed.")
 
             # Get the cookie value from the response
-            cookie_name = 'auth_jwt_token'
+            cookie_name = 'auth_jwt'
             found_cookie = cookie_name in self.sessions[i].cookies
 
             # If cookie is None, it means no cookie has been set

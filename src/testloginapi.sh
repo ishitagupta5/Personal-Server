@@ -5,11 +5,11 @@ HOST=localhost
 
 # to test against a working implementation (and see the intended responses)
 # change this variable, e.g.
-#URL=http://hazelnut.rlogin:12345
+URL=http://hazelnut.rlogin:12345
 # adjust these to match your server's username/password
-USER_NAME=users24
-USER_PASS=spring24
-URL=http://${HOST}:${PORT}
+USER_NAME=userf24
+USER_PASS=fall24
+#URL=http://${HOST}:${PORT}
 
 echo Your server should be running on host $HOST port $PORT
 echo You may need to start it with, e.g.
