@@ -157,7 +157,11 @@ start_response(struct http_transaction * ta, buffer_t *res)
      * Respond with the highest version the client supports
      * as indicated in the version field of the request.
      */
-    buffer_appends(res, "HTTP/1.0 ");
+    if (ta->req_version == HTTP_1_1) {
+        buffer_appends(res, "HTTP/1.1 ");
+    } else {
+        buffer_appends(res, "HTTP/1.0 ");
+    }
 
     switch (ta->resp_status) {
     case HTTP_OK:
@@ -364,6 +368,7 @@ http_setup_client(struct http_client *self, struct bufio *bufio)
 bool
 http_handle_transaction(struct http_client *self)
 {
+    // if it's http 1.1 it should be true
     struct http_transaction ta;
     memset(&ta, 0, sizeof ta);
     ta.client = self;

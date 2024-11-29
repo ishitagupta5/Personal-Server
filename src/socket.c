@@ -47,6 +47,8 @@ socket_open_bind_listen(char * port_number_string, int backlog)
                     AI_NUMERICSERV; // service port is numeric, don't look in /etc/services
 
     hint.ai_protocol = IPPROTO_TCP; // only interested in TCP
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_family = AF_UNSPEC; // Allow both IPv4 and IPv6
     int rc = getaddrinfo(NULL, port_number_string, &hint, &info);
     if (rc != 0) {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(rc));
@@ -73,8 +75,8 @@ socket_open_bind_listen(char * port_number_string, int backlog)
         /* Skip any non-IPv4 addresses.  
          * Adding support for protocol independence/IPv6 is part of the project.
          */
-        if (pinfo->ai_family != AF_INET)
-            continue;
+        // if (pinfo->ai_family != AF_INET)
+        //     continue;
 
         int s = socket(pinfo->ai_family, pinfo->ai_socktype, pinfo->ai_protocol);
         if (s == -1) {
