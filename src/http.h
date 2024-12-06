@@ -43,7 +43,7 @@ struct http_transaction {
     off_t range_start;
     off_t range_end;
     bool want_keep_alive;
-    size_t cookie;
+    char *cookie;
 
     /* response related fields */
     enum http_response_status resp_status;

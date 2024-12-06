@@ -145,7 +145,7 @@ http_process_headers(struct http_transaction *ta)
         }
 
         if (!strcasecmp(field_name, "Cookie")) {
-            ta->cookie = bufio_ptr2offset(ta->client->bufio, field_value);
+            ta->cookie = (char *)bufio_ptr2offset(ta->client->bufio, field_value);
         }
     }
 }
