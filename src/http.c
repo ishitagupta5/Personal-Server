@@ -20,6 +20,9 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <linux/limits.h>
+#include <jansson.h>
+#include <jwt.h>
+#include <time.h>
 
 #include "http.h"
 #include "hexdump.h"
@@ -81,6 +84,11 @@ http_parse_request(struct http_transaction *ta)
 static bool
 http_process_headers(struct http_transaction *ta)
 {
+    ta->req_content_len = 0;
+    ta->range_start = -1;
+    ta->range_end = -1;
+    ta->want_keep_alive = (ta->req_version == HTTP_1_1);
+
     for (;;) {
         size_t header_offset;
         ssize_t len = bufio_readline(ta->client->bufio, &header_offset);
@@ -116,6 +124,29 @@ http_process_headers(struct http_transaction *ta)
         /* Handle other headers here. Both field_value and field_name
          * are zero-terminated strings.
          */
+        if (!strcasecmp(field_name, "Connection")) {
+            if (!strcasecmp(field_value, "close"))
+                ta->want_keep_alive = false;
+        }
+
+        if (!strcasecmp(field_name, "Range")) {
+            if (!strncasecmp(field_value, "bytes=", 6)) {
+                char *r = field_value + 6;
+                char *dash = strchr(r, '-');
+                if (dash) {
+                    *dash = '\0';
+                    if (*r)
+                        ta->range_start = atoll(r);
+                    char *endp = dash+1;
+                    if (*endp)
+                        ta->range_end = atoll(endp);
+                }
+            }
+        }
+
+        if (!strcasecmp(field_name, "Cookie")) {
+            ta->cookie = bufio_ptr2offset(ta->client->bufio, field_value);
+        }
     }
 }
 
@@ -295,6 +326,13 @@ guess_mime_type(char *filename)
 
     /* hint: you need to add support for (at least) .css, .svg, and .mp4
      * You can grep /etc/mime.types for the correct types */
+    
+    if (!strcasecmp(suffix, ".css"))
+        return "text/css";
+    if (!strcasecmp(suffix, ".svg"))
+        return "image/svg+xml";
+    if (!strcasecmp(suffix, ".mp4"))
+        return "video/mp4";
     return "text/plain";
 }
 
@@ -308,6 +346,10 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
     // The code below is vulnerable to an attack.  Can you see
     // which?  Fix it to avoid indirect object reference (IDOR) attacks.
+    if (strstr(req_path, "..")) {
+        return send_error(ta, HTTP_PERMISSION_DENIED, "Permission denied");
+    }
+
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
 
     if (access(fname, R_OK) == -1) {
@@ -354,7 +396,29 @@ out:
 static bool
 handle_api(struct http_transaction *ta)
 {
-    return send_error(ta, HTTP_NOT_FOUND, "API not implemented");
+    char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
+
+    if (strcmp(req_path, "/api/login") == 0) {
+        if (ta->req_method == HTTP_GET) {
+            ta->resp_status = HTTP_OK;
+            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+            buffer_appends(&ta->resp_body, "{}");
+            return send_response(ta);
+        } else if (ta->req_method == HTTP_POST) {
+            // For now, if password is incorrect or request invalid, respond with 403.
+            // We'll just fail gracefully for minimal requirements.
+            ta->resp_status = HTTP_PERMISSION_DENIED;
+            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+            buffer_appends(&ta->resp_body, "{}"); 
+            return send_response(ta);
+        } else {
+            // Method not allowed
+            return send_error(ta, HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+        }
+    }
+
+    // If we reach here, it's some other /api endpoint we don't handle
+    return send_error(ta, HTTP_NOT_FOUND, "Not Found");
 }
 
 /* Set up an http client, associating it with a bufio buffer. */
@@ -399,11 +463,12 @@ http_handle_transaction(struct http_client *self)
         rc = handle_api(&ta);
     } else
     if (STARTS_WITH(req_path, "/private")) {
-        /* not implemented */
+            rc = handle_static_asset(&ta, server_root);
     } else {
         rc = handle_static_asset(&ta, server_root);
     }
 
+    self->keep_alive = ta.want_keep_alive;
     buffer_delete(&ta.resp_headers);
     buffer_delete(&ta.resp_body);
 

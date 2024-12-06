@@ -1,9 +1,9 @@
 #ifndef _HTTP_H
 #define _HTTP_H
 
+#include <sys/types.h>
 #include <jwt.h>
 #include <stdbool.h>
-
 #include "buffer.h"
 struct bufio;
 
@@ -40,6 +40,10 @@ struct http_transaction {
     size_t req_body;        // ditto
     int req_content_len;    // content length of request body
 
+    off_t range_start;
+    off_t range_end;
+    bool want_keep_alive;
+    size_t cookie;
 
     /* response related fields */
     enum http_response_status resp_status;
@@ -51,6 +55,7 @@ struct http_transaction {
 
 struct http_client {
     struct bufio *bufio;
+    bool keep_alive;
 };
 
 void http_setup_client(struct http_client *, struct bufio *bufio);

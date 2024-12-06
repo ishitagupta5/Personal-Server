@@ -5,6 +5,7 @@
  * written for CS3214, Spring 2018.
  */
 
+#include <pthread.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,8 @@
 #include "socket.h"
 #include "bufio.h"
 #include "main.h"
+
+static void *handle_client_thread(void *arg);
 
 /* Implement HTML5 fallback.
  * If HTML5 fallback is implemented and activated, the server should
@@ -32,7 +35,21 @@ bool silent_mode = false;
 int token_expiration_time = 24 * 60 * 60;
 
 // root from which static files are served
+
 char *server_root;
+
+static void *handle_client_thread(void *arg) {
+    struct http_client *client = arg;
+    for (;;) {
+        bool success = http_handle_transaction(client);
+        if (!success || !client->keep_alive) {
+            break;
+        }
+    }
+    bufio_close(client->bufio);
+    free(client);
+    return NULL;
+}
 
 /*
  * A non-concurrent, iterative server that serves one client at a time.
@@ -48,10 +65,20 @@ server_loop(char *port_string)
         if (client_socket == -1)
             return;
 
-        struct http_client client;
-        http_setup_client(&client, bufio_create(client_socket));
-        http_handle_transaction(&client);
-        bufio_close(client.bufio);
+        struct http_client *client = malloc(sizeof(*client));
+
+        http_setup_client(client, bufio_create(client_socket));
+
+        pthread_t tid;
+        int rc = pthread_create(&tid, NULL, handle_client_thread, client);
+        if (rc != 0) {
+            fprintf(stderr, "Error creating thread: %s\n", strerror(rc));
+            bufio_close(client->bufio);
+            free(client);
+            continue;
+        }
+
+        pthread_detach(tid);
     }
 }
 
