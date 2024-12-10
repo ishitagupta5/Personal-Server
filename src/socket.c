@@ -55,15 +55,17 @@ socket_open_bind_listen(char * port_number_string, int backlog)
         return -1;
     }
 
+    int listening_socket = -1;
     char printed_addr[1024];
     for (pinfo = info; pinfo; pinfo = pinfo->ai_next) {
-        assert (pinfo->ai_protocol == IPPROTO_TCP);
+        if (pinfo->ai_family != AF_INET6)
+            continue;
         int rc = getnameinfo(pinfo->ai_addr, pinfo->ai_addrlen,
                              printed_addr, sizeof printed_addr, NULL, 0,
                              NI_NUMERICHOST);
         if (rc != 0) {
             fprintf(stderr, "getnameinfo error: %s\n", gai_strerror(rc));
-            return -1;
+            continue;
         }
 
         /* Uncomment this to see the address returned
@@ -81,32 +83,72 @@ socket_open_bind_listen(char * port_number_string, int backlog)
         int s = socket(pinfo->ai_family, pinfo->ai_socktype, pinfo->ai_protocol);
         if (s == -1) {
             perror("socket");
-            return -1;
+            continue;
         }
 
         // See https://stackoverflow.com/a/3233022 for a good explanation of what this does
         int opt = 1;
         setsockopt (s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof (opt));
 
-        rc = bind(s, pinfo->ai_addr, pinfo->ai_addrlen);
-        if (rc == -1) {
-            perror("bind");
+        if (bind(s, pinfo->ai_addr, pinfo->ai_addrlen) == -1) {
             close(s);
-            return -1;
+            continue;
         }
-
-        rc = listen(s, backlog);
-        if (rc == -1) {
+        if (listen(s, backlog) == -1) {
             perror("listen");
             close(s);
-            return -1;
+            continue;
         }
 
-        freeaddrinfo(info);
-        return s;
+        listening_socket = s;
+        break; 
     }
-    fprintf(stderr, "No suitable address to bind port %s found\n", port_number_string);
-    return -1;
+
+    if (listening_socket == -1) {
+        for (pinfo = info; pinfo; pinfo = pinfo->ai_next) {
+            if (pinfo->ai_family != AF_INET)
+                continue;
+
+            int rc = getnameinfo(pinfo->ai_addr, pinfo->ai_addrlen,
+                                 printed_addr, sizeof printed_addr, NULL, 0,
+                                 NI_NUMERICHOST);
+            if (rc != 0) {
+                fprintf(stderr, "getnameinfo error: %s\n", gai_strerror(rc));
+                continue;
+            }
+
+            int s = socket(pinfo->ai_family, pinfo->ai_socktype, pinfo->ai_protocol);
+            if (s == -1)
+                continue;
+
+            int opt = 1;
+            setsockopt (s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof (opt));
+
+            if (bind(s, pinfo->ai_addr, pinfo->ai_addrlen) == -1) {
+                close(s);
+                continue;
+            }
+
+            if (listen(s, backlog) == -1) {
+                perror("listen");
+                close(s);
+                continue;
+            }
+
+            listening_socket = s;
+            break;
+        }
+    }
+
+    freeaddrinfo(info);
+
+    if (listening_socket == -1) {
+        fprintf(stderr, "No suitable address to bind port %s found\n", port_number_string);
+        return -1;
+    }
+
+    return listening_socket;
+
 }
 
 /**
