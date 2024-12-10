@@ -7,6 +7,7 @@
  *
  * @author G. Back for CS 3214 Spring 2018
  */
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -35,6 +36,8 @@
 #define CR "\r"
 #define STARTS_WITH(field_name, header) \
     (!strncasecmp(field_name, header, sizeof(header) - 1))
+
+const char *jwt_secret_key = "big balls";
 
 /* Parse HTTP request line, setting req_method, req_path, and req_version. */
 static bool
@@ -88,6 +91,7 @@ http_process_headers(struct http_transaction *ta)
     ta->range_start = -1;
     ta->range_end = -1;
     ta->want_keep_alive = (ta->req_version == HTTP_1_1);
+    ta->is_authenticated = false; 
 
     for (;;) {
         size_t header_offset;
@@ -145,10 +149,48 @@ http_process_headers(struct http_transaction *ta)
         }
 
         if (!strcasecmp(field_name, "Cookie")) {
-            ta->cookie = (char *)bufio_ptr2offset(ta->client->bufio, field_value);
+            ta->cookie = bufio_ptr2offset(ta->client->bufio, field_value);
+
+            // Extract auth_token from cookie
+            char *cookie_header = bufio_offset2ptr(ta->client->bufio, ta->cookie);
+            char *copy = strdup(cookie_header);
+            char *token = NULL;
+            char *saveptr = NULL;
+            char *part = strtok_r(copy, ";", &saveptr);
+            while (part) {
+                char *eq = strchr(part, '=');
+                if (eq) {
+                    *eq = '\0';
+                    char *name = part;
+                    char *value = eq + 1;
+                    while (*name == ' ' || *name == '\t') name++;
+                    while (*value == ' ' || *value == '\t') value++;
+                    if (!strcasecmp(name, "auth_jwt")) {
+                        token = strdup(value);
+                        break;
+                    }
+                }
+                part = strtok_r(NULL, ";", &saveptr);
+            }
+            free(copy);
+
+            // Validate JWT token
+            if (token) {
+                jwt_t *jwt = NULL;
+                if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, (int)strlen(jwt_secret_key)) == 0) {
+                    time_t exp = jwt_get_grant_int(jwt, "exp");
+                    time_t now = time(NULL);
+                    if (exp > now) { // Token is valid and not expired
+                        ta->is_authenticated = true;
+                    }
+                    jwt_free(jwt);
+                }
+                free(token);
+            }
         }
     }
 }
+
 
 const int MAX_HEADER_LEN = 2048;
 
@@ -337,6 +379,7 @@ guess_mime_type(char *filename)
 }
 
 /* Handle HTTP transaction for static files. */
+//for videos parse the arnge header in process headers, then make sure wont go off end of file , take range and send 
 static bool
 handle_static_asset(struct http_transaction *ta, char *basedir)
 {
@@ -392,34 +435,170 @@ out:
     close(filefd);
     return success;
 }
+/*
+Your server should implement the entry point /api/login which then goes to private in auth
+When used in a GET request, /api/login should return the claims the client presented in its request as a JSON object if the user is authenticated, or an empty object
+{} if not.
+Your server should implement the entry point /api/logout as well
+api login post get
+api logout post 
+video later on i think - go through and find video files in server root, find all that end in mp4, print json
 
-static bool
-handle_api(struct http_transaction *ta)
-{
-    char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
+ */
+static bool handle_api(struct http_transaction *ta) {
+    extern int token_expiration_time; // Assume defined globally
+    char *req_path_ptr = bufio_offset2ptr(ta->client->bufio, ta->req_path);
 
-    if (strcmp(req_path, "/api/login") == 0) {
-        if (ta->req_method == HTTP_GET) {
-            ta->resp_status = HTTP_OK;
-            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
-            buffer_appends(&ta->resp_body, "{}");
-            return send_response(ta);
-        } else if (ta->req_method == HTTP_POST) {
-            // For now, if password is incorrect or request invalid, respond with 403.
-            // We'll just fail gracefully for minimal requirements.
-            ta->resp_status = HTTP_PERMISSION_DENIED;
-            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
-            buffer_appends(&ta->resp_body, "{}"); 
-            return send_response(ta);
+    const char *env_user = getenv("USER_NAME");
+    if (!env_user) env_user = "user";
+    const char *env_pass = getenv("USER_PASS");
+    if (!env_pass) env_pass = "pass";
+    const char *jwt_secret_key = getenv("SECRET");
+    if (!jwt_secret_key) jwt_secret_key = "your_secret_key";
+
+    // Initialize authentication field
+    ta->is_authenticated = false;
+
+    if (strcmp(req_path_ptr, "/api/login") == 0) {
+    if (ta->req_method == HTTP_GET) {
+        char *cookie_header = NULL;
+        if (ta->cookie != 0) {
+            cookie_header = bufio_offset2ptr(ta->client->bufio, ta->cookie);
+        }
+
+        char *token = NULL;
+        if (cookie_header) {
+            char *copy = strdup(cookie_header);
+            char *saveptr = NULL;
+            char *part = strtok_r(copy, ";", &saveptr);
+            while (part) {
+                char *eq = strchr(part, '=');
+                if (eq) {
+                    *eq = '\0';
+                    char *name = part;
+                    char *value = eq + 1;
+                    if (!strcasecmp(name, "auth_jwt")) {
+                        token = strdup(value);
+                        break;
+                    }
+                }
+                part = strtok_r(NULL, ";", &saveptr);
+            }
+            free(copy);
+        }
+
+        json_t *claims = NULL;
+        if (token) {
+            jwt_t *jwt = NULL;
+            if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, (int)strlen(jwt_secret_key)) == 0) {
+                time_t exp = (time_t)jwt_get_grant_int(jwt, "exp");
+                time_t now = time(NULL);
+                if (exp >= now) {
+                    ta->is_authenticated = true;
+
+                    // Extract JWT claims
+                    const char *sub = jwt_get_grant(jwt, "sub");
+                    claims = json_object();
+                    json_object_set_new(claims, "sub", json_string(sub ? sub : ""));
+                    json_object_set_new(claims, "iat", json_integer(jwt_get_grant_int(jwt, "iat")));
+                    json_object_set_new(claims, "exp", json_integer(exp));
+                }
+                jwt_free(jwt);
+            }
+            free(token);
+        }
+
+        ta->resp_status = 200; // OK
+        http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+        if (claims) {
+            char *resp_str = json_dumps(claims, 0);
+            json_decref(claims);
+            buffer_appends(&ta->resp_body, resp_str);
+            free(resp_str);
         } else {
-            // Method not allowed
-            return send_error(ta, HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+            buffer_appends(&ta->resp_body, "{}");
+        }
+        return send_response(ta);
+    }
+ else if (ta->req_method == HTTP_POST) {
+            char *body = bufio_offset2ptr(ta->client->bufio, ta->req_body);
+            json_error_t error;
+            json_t *root = json_loadb(body, ta->req_content_len, 0, &error);
+            if (!root || !json_is_object(root)) {
+                if (root) json_decref(root);
+                ta->resp_status = 400;
+                http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+                return send_response(ta);
+            }
+
+            const char *username = NULL, *password = NULL;
+            json_t *uobj = json_object_get(root, "username");
+            json_t *pobj = json_object_get(root, "password");
+            if (json_is_string(uobj)) username = json_string_value(uobj);
+            if (json_is_string(pobj)) password = json_string_value(pobj);
+
+            if (username && password && strcmp(username, env_user) == 0 && strcmp(password, env_pass) == 0) {
+            jwt_t *jwt;
+            jwt_new(&jwt);
+
+            // Add claims to the JWT
+            jwt_add_grant(jwt, "sub", username); // Subject claim (username)
+            time_t now = time(NULL);             // Current time
+            jwt_add_grant_int(jwt, "iat", now);  // Issued-at claim
+            jwt_add_grant_int(jwt, "exp", now + token_expiration_time); // Expiration claim
+
+            // Set the JWT algorithm and secret
+            jwt_set_alg(jwt, JWT_ALG_HS256, (const unsigned char *)jwt_secret_key, (int)strlen(jwt_secret_key));
+            char *token = jwt_encode_str(jwt);
+
+            // Respond with token and set cookie
+            ta->resp_status = 200;
+            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+            http_add_header(&ta->resp_headers, "Set-Cookie", "auth_jwt=%s; Path=/; HttpOnly; SameSite=Lax; Max-Age=%d", token, token_expiration_time);
+
+            // Include claims in the response body
+            json_t *claims = json_object();
+            json_object_set_new(claims, "sub", json_string(username));
+            json_object_set_new(claims, "iat", json_integer(now));
+            json_object_set_new(claims, "exp", json_integer(now + token_expiration_time));
+
+            char *resp_str = json_dumps(claims, 0);
+            buffer_appends(&ta->resp_body, resp_str);
+            free(resp_str);
+            json_decref(claims);
+
+            jwt_free(jwt);
+            free(token);
+            json_decref(root);
+            return send_response(ta);
+        }
+        else {
+                json_decref(root);
+                ta->resp_status = 403;
+                http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+                return send_response(ta);
+            }
+        } else {
+            return send_error(ta, 405, "Method not allowed");
         }
     }
 
-    // If we reach here, it's some other /api endpoint we don't handle
-    return send_error(ta, HTTP_NOT_FOUND, "Not Found");
+    if (strcmp(req_path_ptr, "/api/logout") == 0) {
+        if (ta->req_method == HTTP_POST) {
+            // Clear cookie
+            http_add_header(&ta->resp_headers, "Set-Cookie", "auth_jwt=; Max-Age=0; Path=/; HttpOnly");
+            ta->resp_status = 200;
+            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+            buffer_appends(&ta->resp_body, "{\"status\": \"logged_out\"}");
+            return send_response(ta);
+        } else {
+            return send_error(ta, 405, "Method not allowed");
+        }
+    }
+
+    return send_error(ta, 404, "Not Found");
 }
+
 
 /* Set up an http client, associating it with a bufio buffer. */
 void 
@@ -461,11 +640,56 @@ http_handle_transaction(struct http_client *self)
     char *req_path = bufio_offset2ptr(ta.client->bufio, ta.req_path);
     if (STARTS_WITH(req_path, "/api")) {
         rc = handle_api(&ta);
-    } else
+    }else
     if (STARTS_WITH(req_path, "/private")) {
-            rc = handle_static_asset(&ta, server_root);
-    } else {
+    // Extract the auth_token from the Cookie header
+    char *cookie_header = bufio_offset2ptr(ta.client->bufio, ta.cookie);
+    char *token = NULL;
+
+    // Default: Not authenticated
+    ta.is_authenticated = false;
+
+    if (cookie_header && (token = strstr(cookie_header, "auth_jwt="))) {
+        token += strlen("auth_jwt=");
+        jwt_t *jwt = NULL;
+
+        // Decode and validate the JWT token
+        if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, strlen(jwt_secret_key)) == 0) {
+            time_t exp = jwt_get_grant_int(jwt, "exp");
+            time_t now = time(NULL);
+            if (exp > now) {
+                ta.is_authenticated = true; // Token is valid
+            }
+            jwt_free(jwt);
+        }
+    }
+
+    // Allow access if authenticated; deny otherwise
+    if (!ta.is_authenticated) {
+        ta.resp_status = 403; // HTTP_FORBIDDEN
+        send_response(&ta);
+        return true;
+    }
+
+    // If authenticated, proceed to serve the requested file
+    if (strstr(req_path, "..")) {
+        ta.resp_status = 404; // Prevent path traversal
+        send_response(&ta);
+        return true;
+    }
+
+    return handle_static_asset(&ta, server_root);
+}
+
+     else {
+        // check for ".."
+        if (strstr(req_path, "..")) {
+        ta.resp_status = 404; // 
+        send_response(&ta);
+        rc = true;
+        } else {
         rc = handle_static_asset(&ta, server_root);
+        }
     }
 
     self->keep_alive = ta.want_keep_alive;
