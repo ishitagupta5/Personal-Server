@@ -733,26 +733,43 @@ http_handle_transaction(struct http_client *self)
         rc = handle_api(&ta);
     }else
     if (STARTS_WITH(req_path, "/private")) {
-    // Extract the auth_token from the Cookie header
-    char *cookie_header = bufio_offset2ptr(ta.client->bufio, ta.cookie);
-    char *token = NULL;
+    char *cookie_header = NULL;
+    if (ta.cookie != 0) {
+        cookie_header = bufio_offset2ptr(self->bufio, ta.cookie);
+    }
 
-    // Default: Not authenticated
     ta.is_authenticated = false;
+    if (cookie_header) {
+        char *copy = strdup(cookie_header);
+        char *saveptr = NULL;
+        char *part = strtok_r(copy, ";", &saveptr);
+        while (part) {
+            while (*part == ' ' || *part == '\t') part++;
+            char *eq = strchr(part, '=');
+            if (eq) {
+                *eq = '\0';
+                char *name = part;
+                char *value = eq + 1;
+                while (*value == ' ' || *value == '\t') value++;
 
-    if (cookie_header && (token = strstr(cookie_header, "auth_jwt="))) {
-        token += strlen("auth_jwt=");
-        jwt_t *jwt = NULL;
+                if (!strcasecmp(name, "auth_jwt")) {
+                    const char *jwt_secret = getenv("SECRET");
+                    if (!jwt_secret) jwt_secret = "your_secret_key";
 
-        // Decode and validate the JWT token
-        if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, strlen(jwt_secret_key)) == 0) {
-            time_t exp = jwt_get_grant_int(jwt, "exp");
-            time_t now = time(NULL);
-            if (exp > now) {
-                ta.is_authenticated = true; // Token is valid
+                    jwt_t *jwt = NULL;
+                    if (jwt_decode(&jwt, value, (unsigned char *)jwt_secret, (int)strlen(jwt_secret)) == 0) {
+                        time_t exp = jwt_get_grant_int(jwt, "exp");
+                        time_t now = time(NULL);
+                        if (exp > now) {
+                            ta.is_authenticated = true;
+                        }
+                        jwt_free(jwt);
+                    }
+                }
             }
-            jwt_free(jwt);
+            part = strtok_r(NULL, ";", &saveptr);
         }
+        free(copy);
     }
 
     // Allow access if authenticated; deny otherwise
