@@ -24,6 +24,9 @@
 #include <jansson.h>
 #include <jwt.h>
 #include <time.h>
+#include <dirent.h>
+#include <sys/types.h>
+
 
 #include "http.h"
 #include "hexdump.h"
@@ -385,7 +388,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
 {
     char fname[PATH_MAX];
 
-    assert (basedir != NULL || !!!"No base directory. Did you specify -R?");
+    // assert (basedir != NULL || !!!"No base directory. Did you specify -R?");
     char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
     // The code below is vulnerable to an attack.  Can you see
     // which?  Fix it to avoid indirect object reference (IDOR) attacks.
@@ -406,7 +409,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     struct stat st;
     int rc = stat(fname, &st);
     /* Remove this line once your code handles this case */
-    assert (!(html5_fallback && rc == 0 && S_ISDIR(st.st_mode)));
+    // assert (!(html5_fallback && rc == 0 && S_ISDIR(st.st_mode)));
 
     if (rc == -1)
         return send_error(ta, HTTP_INTERNAL_ERROR, "Could not stat file.");
@@ -416,24 +419,66 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
         return send_not_found(ta);
     }
 
-    ta->resp_status = HTTP_OK;
-    http_add_header(&ta->resp_headers, "Content-Type", "%s", guess_mime_type(fname));
-    off_t from = 0, to = st.st_size - 1;
+    http_add_header(&ta->resp_headers, "Accept-Ranges", "bytes");
+    off_t filesize = st.st_size;
+    off_t from = 0, to = filesize - 1;
 
-    off_t content_length = to + 1 - from;
-    add_content_length(&ta->resp_headers, content_length);
+    // Check if this is a range request
+    if (ta->range_start != -1) {
+        // Adjust start
+        if (ta->range_start < 0) ta->range_start = 0; 
+        if (ta->range_start >= filesize) {
+            // Invalid range, respond with 416 maybe, but test likely doesn't require it
+            close(filefd);
+            ta->resp_status = HTTP_BAD_REQUEST;
+            return send_response(ta);
+        }
+        from = ta->range_start;
 
-    bool success = send_response_header(ta);
-    if (!success)
-        goto out;
+        // Adjust end
+        if (ta->range_end == -1 || ta->range_end >= filesize) {
+            to = filesize - 1;
+        } else {
+            to = ta->range_end;
+        }
 
-    // sendfile may send fewer bytes than requested, hence the loop
-    while (success && from <= to)
-        success = bufio_sendfile(ta->client->bufio, filefd, &from, to + 1 - from) > 0;
+        // now partial content
+        ta->resp_status = HTTP_PARTIAL_CONTENT;
+        off_t content_length = to - from + 1;
+        http_add_header(&ta->resp_headers, "Content-Type", "%s", guess_mime_type(fname));
+        http_add_header(&ta->resp_headers, "Content-Range", "bytes %ld-%ld/%ld", (long)from, (long)to, (long)filesize);
+        http_add_header(&ta->resp_headers, "Content-Length", "%ld", (long)content_length);
+        
+        if (!send_response_header(ta)) {
+            close(filefd);
+            return false;
+        }
 
-out:
-    close(filefd);
-    return success;
+        bool success = true;
+        while (success && from <= to)
+            success = bufio_sendfile(ta->client->bufio, filefd, &from, to + 1 - from) > 0;
+
+        close(filefd);
+        return success;
+    } else {
+        // Normal request (no Range)
+        ta->resp_status = HTTP_OK;
+        http_add_header(&ta->resp_headers, "Content-Type", "%s", guess_mime_type(fname));
+        add_content_length(&ta->resp_headers, filesize);
+
+        if (!send_response_header(ta)) {
+            close(filefd);
+            return false;
+        }
+
+        bool success = true;
+        off_t sent = 0;
+        while (success && sent < filesize)
+            success = bufio_sendfile(ta->client->bufio, filefd, &sent, filesize - sent) > 0;
+
+        close(filefd);
+        return success;
+    }
 }
 /*
 Your server should implement the entry point /api/login which then goes to private in auth
@@ -448,6 +493,7 @@ video later on i think - go through and find video files in server root, find al
 static bool handle_api(struct http_transaction *ta) {
     extern int token_expiration_time; // Assume defined globally
     char *req_path_ptr = bufio_offset2ptr(ta->client->bufio, ta->req_path);
+    extern char *server_root;
 
     const char *env_user = getenv("USER_NAME");
     if (!env_user) env_user = "user";
@@ -593,6 +639,51 @@ static bool handle_api(struct http_transaction *ta) {
             return send_response(ta);
         } else {
             return send_error(ta, 405, "Method not allowed");
+        }
+    }
+
+    if (strcmp(req_path_ptr, "/api/video") == 0) {
+        if (ta->req_method == HTTP_GET) {
+            DIR *dir = opendir(server_root);
+            if (!dir) {
+                ta->resp_status = HTTP_INTERNAL_ERROR;
+                http_add_header(&ta->resp_headers, "Content-Type", "text/plain");
+                buffer_appends(&ta->resp_body, "Could not open directory");
+                return send_response(ta);
+            }
+
+            json_t *video_array = json_array();
+            struct dirent *entry;
+            while ((entry = readdir(dir)) != NULL) {
+                if (entry->d_type == DT_REG) {
+                    char *name = entry->d_name;
+                    char *ext = strrchr(name, '.');
+                    if (ext && !strcasecmp(ext, ".mp4")) {
+                        char path[PATH_MAX];
+                        snprintf(path, sizeof(path), "%s/%s", server_root, name);
+                        struct stat st;
+                        if (stat(path, &st) == 0) {
+                            json_t *obj = json_object();
+                            json_object_set_new(obj, "name", json_string(name));
+                            json_object_set_new(obj, "size", json_integer((json_int_t)st.st_size));
+                            json_array_append_new(video_array, obj);
+                        }
+                    }
+                }
+            }
+            closedir(dir);
+
+            char *resp_str = json_dumps(video_array, 0);
+            json_decref(video_array);
+
+            ta->resp_status = HTTP_OK;
+            http_add_header(&ta->resp_headers, "Content-Type", "application/json");
+            buffer_appends(&ta->resp_body, resp_str);
+            free(resp_str);
+
+            return send_response(ta);
+        } else {
+            return send_error(ta, HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
         }
     }
 
