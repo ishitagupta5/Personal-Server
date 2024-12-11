@@ -655,21 +655,20 @@ static bool handle_api(struct http_transaction *ta) {
             json_t *video_array = json_array();
             struct dirent *entry;
             while ((entry = readdir(dir)) != NULL) {
-                if (entry->d_type == DT_REG) {
-                    char *name = entry->d_name;
-                    char *ext = strrchr(name, '.');
-                    if (ext && !strcasecmp(ext, ".mp4")) {
-                        char path[PATH_MAX];
-                        snprintf(path, sizeof(path), "%s/%s", server_root, name);
-                        struct stat st;
-                        if (stat(path, &st) == 0) {
-                            json_t *obj = json_object();
-                            json_object_set_new(obj, "name", json_string(name));
-                            json_object_set_new(obj, "size", json_integer((json_int_t)st.st_size));
-                            json_array_append_new(video_array, obj);
-                        }
-                    }
+                char path[PATH_MAX];
+            snprintf(path, sizeof(path), "%s/%s", server_root, entry->d_name);
+
+            struct stat st;
+            if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+                char *name = entry->d_name;
+                char *ext = strrchr(name, '.');
+                if (ext && !strcasecmp(ext, ".mp4")) {
+                    json_t *obj = json_object();
+                    json_object_set_new(obj, "name", json_string(name));
+                    json_object_set_new(obj, "size", json_integer((json_int_t)st.st_size));
+                    json_array_append_new(video_array, obj);
                 }
+            }
             }
             closedir(dir);
 
