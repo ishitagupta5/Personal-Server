@@ -17,6 +17,7 @@
 #include "bufio.h"
 #include "main.h"
 
+// Added to handle concurrent clients using threads.
 static void *handle_client_thread(void *arg);
 
 /* Implement HTML5 fallback.
@@ -38,14 +39,22 @@ int token_expiration_time = 24 * 60 * 60;
 
 char *server_root;
 
+/* 
+ * Thread function to handle a single client's HTTP transactions.
+ * Repeatedly processes transactions until the client disconnects 
+ * or the connection is no longer keep-alive.
+ */
 static void *handle_client_thread(void *arg) {
     struct http_client *client = arg;
     for (;;) {
+        // Handle a single HTTP transaction.
         bool success = http_handle_transaction(client);
         if (!success || !client->keep_alive) {
+            // Exit loop if the transaction fails or connection is not persistent.
             break;
         }
     }
+    // Clean up resources after handling the client.
     bufio_close(client->bufio);
     free(client);
     return NULL;
@@ -61,23 +70,27 @@ server_loop(char *port_string)
     int accepting_socket = socket_open_bind_listen(port_string, 10000);
     while (accepting_socket != -1) {
         fprintf(stderr, "Waiting for client...\n");
+       // Accept a new client connection.
         int client_socket = socket_accept_client(accepting_socket);
         if (client_socket == -1)
             return;
 
+        // Allocate memory for a new client structure.
         struct http_client *client = malloc(sizeof(*client));
 
         http_setup_client(client, bufio_create(client_socket));
 
+        // Create a thread to handle the client.
         pthread_t tid;
         int rc = pthread_create(&tid, NULL, handle_client_thread, client);
         if (rc != 0) {
+            // Handle thread creation failure.        
             fprintf(stderr, "Error creating thread: %s\n", strerror(rc));
             bufio_close(client->bufio);
             free(client);
             continue;
         }
-
+        // Detach the thread to avoid resource leaks.
         pthread_detach(tid);
     }
 }
@@ -100,6 +113,7 @@ main(int ac, char *av[])
 {
     int opt;
     char *port_string = NULL;
+    // Parse command-line arguments.
     while ((opt = getopt(ac, av, "ahp:R:se:")) != -1) {
         switch (opt) {
             case 'a':

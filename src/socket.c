@@ -48,7 +48,7 @@ socket_open_bind_listen(char * port_number_string, int backlog)
 
     hint.ai_protocol = IPPROTO_TCP; // only interested in TCP
     hint.ai_socktype = SOCK_STREAM;
-    hint.ai_family = AF_UNSPEC; // Allow both IPv4 and IPv6
+    hint.ai_family = AF_UNSPEC; // Allow both IPv4 and IPv6, enabling dual-stack
     int rc = getaddrinfo(NULL, port_number_string, &hint, &info);
     if (rc != 0) {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(rc));

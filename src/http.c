@@ -40,7 +40,7 @@
 #define STARTS_WITH(field_name, header) \
     (!strncasecmp(field_name, header, sizeof(header) - 1))
 
-//secret key
+// Added a global constant for the secret key used to sign and validate JWT tokens.
 const char *jwt_secret_key = "big balls";
 
 /* Parse HTTP request line, setting req_method, req_path, and req_version. */
@@ -76,7 +76,7 @@ http_parse_request(struct http_transaction *ta)
     if (http_version == NULL)  // would be HTTP 0.9
         return false;
 
-    // record client's HTTP version in request
+    // Updated to record the client's HTTP version for compatibility with HTTP/1.1.
     if (!strcmp(http_version, "HTTP/1.1"))
         ta->req_version = HTTP_1_1;
     else if (!strcmp(http_version, "HTTP/1.0"))
@@ -91,9 +91,11 @@ http_parse_request(struct http_transaction *ta)
 static bool
 http_process_headers(struct http_transaction *ta)
 {
+    // Ensured default initialization of fields for HTTP/1.1 support and authentication.
     ta->req_content_len = 0;
     ta->range_start = -1;
     ta->range_end = -1;
+    // Support for persistent connections.
     ta->want_keep_alive = (ta->req_version == HTTP_1_1);
     ta->is_authenticated = false; 
 
@@ -123,6 +125,7 @@ http_process_headers(struct http_transaction *ta)
         while (*field_value == ' ' || *field_value == '\t')
             field_value++;
 
+        // Added logic to handle Content-Length header and range requests for partial content.
         // you may print the header like so
         // printf("Header: %s: %s\n", field_name, field_value);
         if (!strcasecmp(field_name, "Content-Length")) {
@@ -140,6 +143,7 @@ http_process_headers(struct http_transaction *ta)
         * If the header value starts with 'bytes=', parse
         * the byte range and update the start and end positions accordingly.
         */
+        // Added support for parsing the 'Range' header to handle partial content requests.
         if (!strcasecmp(field_name, "Range")) {
             if (!strncasecmp(field_value, "bytes=", 6)) {
                 char *r = field_value + 6;
@@ -155,6 +159,7 @@ http_process_headers(struct http_transaction *ta)
             }
         }
 
+        // Integrated JWT token validation to determine authentication state.
         if (!strcasecmp(field_name, "Cookie")) {
             ta->cookie = bufio_ptr2offset(ta->client->bufio, field_value);
 
@@ -181,7 +186,7 @@ http_process_headers(struct http_transaction *ta)
             }
             free(copy);
 
-            // Validate JWT token
+            // Validate JWT token and set authentication status.
             if (token) {
                 jwt_t *jwt = NULL;
                 if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, (int)strlen(jwt_secret_key)) == 0) {
@@ -376,6 +381,7 @@ guess_mime_type(char *filename)
     /* hint: you need to add support for (at least) .css, .svg, and .mp4
      * You can grep /etc/mime.types for the correct types */
     
+    // Extended MIME type support for '.css', '.svg', and '.mp4' files.
     if (!strcasecmp(suffix, ".css"))
         return "text/css";
     if (!strcasecmp(suffix, ".svg"))
@@ -393,15 +399,17 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     char fname[PATH_MAX];
 
     // assert (basedir != NULL || !!!"No base directory. Did you specify -R?");
+    // Added protection against path traversal attacks by rejecting requests containing "..".
     char *req_path = bufio_offset2ptr(ta->client->bufio, ta->req_path);
     // The code below is vulnerable to an attack.  Can you see
     // which?  Fix it to avoid indirect object reference (IDOR) attacks.
+    // Prevent path traversal attacks by rejecting requests containing "..".
     if (strstr(req_path, "..")) {
         return send_error(ta, HTTP_PERMISSION_DENIED, "Permission denied");
     }
 
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
-
+    // Implemented HTML5 fallback logic to serve index.html or 200.html if the requested file does not exist.
     //handling html5fallback
     //reutnring the required paths and error whene no path avaialble
     //used stat to check if file exists
@@ -442,6 +450,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
         return send_not_found(ta);
     }
 
+    // Added 'Accept-Ranges' header for partial content support.
     http_add_header(&ta->resp_headers, "Accept-Ranges", "bytes");
     off_t filesize = st.st_size;
     off_t from = 0, to = filesize - 1;
@@ -527,9 +536,10 @@ static bool handle_api(struct http_transaction *ta) {
 
     // Initialize authentication field
     ta->is_authenticated = false;
-
+    // Added '/api/login' endpoint for handling user authentication.
     if (strcmp(req_path_ptr, "/api/login") == 0) {
     if (ta->req_method == HTTP_GET) {
+        // Respond with JWT claims if authenticated, or an empty object if not.
         char *cookie_header = NULL;
         if (ta->cookie != 0) {
             cookie_header = bufio_offset2ptr(ta->client->bufio, ta->cookie);
@@ -590,6 +600,7 @@ static bool handle_api(struct http_transaction *ta) {
         return send_response(ta);
     }
  else if (ta->req_method == HTTP_POST) {
+            // Validate credentials, issue JWT token, and set it in the 'auth_jwt' cookie.
             char *body = bufio_offset2ptr(ta->client->bufio, ta->req_body);
             json_error_t error;
             json_t *root = json_loadb(body, ta->req_content_len, 0, &error);
@@ -652,9 +663,10 @@ static bool handle_api(struct http_transaction *ta) {
         }
     }
 
+    // Added '/api/logout' endpoint to clear the JWT token from the cookie.
     if (strcmp(req_path_ptr, "/api/logout") == 0) {
         if (ta->req_method == HTTP_POST) {
-            // Clear cookie
+            // Clear 'auth_jwt' cookie and respond with a logged-out status.
             http_add_header(&ta->resp_headers, "Set-Cookie", "auth_jwt=; Max-Age=0; Path=/; HttpOnly");
             ta->resp_status = 200;
             http_add_header(&ta->resp_headers, "Content-Type", "application/json");
@@ -665,8 +677,10 @@ static bool handle_api(struct http_transaction *ta) {
         }
     }
 
+    // Added '/api/video' endpoint to list all '.mp4' files in the server root directory as JSON.
     if (strcmp(req_path_ptr, "/api/video") == 0) {
         if (ta->req_method == HTTP_GET) {
+            // Open server root directory, find all '.mp4' files, and respond with their details in JSON format.
             DIR *dir = opendir(server_root);
             if (!dir) {
                 ta->resp_status = HTTP_INTERNAL_ERROR;
@@ -753,8 +767,9 @@ http_handle_transaction(struct http_client *self)
     char *req_path = bufio_offset2ptr(ta.client->bufio, ta.req_path);
     if (STARTS_WITH(req_path, "/api")) {
         rc = handle_api(&ta);
-    }else
-    if (STARTS_WITH(req_path, "/private")) {
+    }
+    // Authenticate '/private' requests by validating the JWT token in the 'auth_jwt' cookie.
+    else if (STARTS_WITH(req_path, "/private")) {
     char *cookie_header = NULL;
     if (ta.cookie != 0) {
         cookie_header = bufio_offset2ptr(self->bufio, ta.cookie);
