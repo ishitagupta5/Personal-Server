@@ -40,6 +40,7 @@
 #define STARTS_WITH(field_name, header) \
     (!strncasecmp(field_name, header, sizeof(header) - 1))
 
+//secret key
 const char *jwt_secret_key = "big balls";
 
 /* Parse HTTP request line, setting req_method, req_path, and req_version. */
@@ -135,7 +136,10 @@ http_process_headers(struct http_transaction *ta)
             if (!strcasecmp(field_value, "close"))
                 ta->want_keep_alive = false;
         }
-
+        /* Handle the 'Range' header.
+        * If the header value starts with 'bytes=', parse
+        * the byte range and update the start and end positions accordingly.
+        */
         if (!strcasecmp(field_name, "Range")) {
             if (!strncasecmp(field_value, "bytes=", 6)) {
                 char *r = field_value + 6;
@@ -154,7 +158,7 @@ http_process_headers(struct http_transaction *ta)
         if (!strcasecmp(field_name, "Cookie")) {
             ta->cookie = bufio_ptr2offset(ta->client->bufio, field_value);
 
-            // Extract auth_token from cookie
+            //extract and validate authentication token ('auth_jwt') from cookies.
             char *cookie_header = bufio_offset2ptr(ta->client->bufio, ta->cookie);
             char *copy = strdup(cookie_header);
             char *token = NULL;
@@ -398,6 +402,25 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
 
     snprintf(fname, sizeof fname, "%s%s", basedir, req_path);
 
+    //handling html5fallback
+    //reutnring the required paths and error whene no path avaialble
+    //used stat to check if file exists
+    if (html5_fallback) {
+        struct stat st;
+
+        if ((strcmp(req_path, "/") == 0) || (strcmp(req_path, "") == 0)) {
+            snprintf(fname, sizeof fname, "%s/index.html", basedir);
+        } else if (stat(fname, &st) != 0 || !S_ISREG(st.st_mode)) {
+            snprintf(fname, sizeof fname, "%s%s.html", basedir, req_path);
+            if (stat(fname, &st) != 0 || !S_ISREG(st.st_mode)) {
+                snprintf(fname, sizeof fname, "%s", basedir);
+                if (stat(fname, &st) != 0 || !S_ISREG(st.st_mode)) {
+                    snprintf(fname, sizeof fname, "%s/200.html", basedir);
+                }
+            }
+        }
+    }
+
     if (access(fname, R_OK) == -1) {
         if (errno == EACCES)
             return send_error(ta, HTTP_PERMISSION_DENIED, "Permission denied.");
@@ -423,26 +446,26 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
     off_t filesize = st.st_size;
     off_t from = 0, to = filesize - 1;
 
-    // Check if this is a range request
+    //Check if this is a range request
     if (ta->range_start != -1) {
-        // Adjust start
+        //adjust start
         if (ta->range_start < 0) ta->range_start = 0; 
         if (ta->range_start >= filesize) {
-            // Invalid range, respond with 416 maybe, but test likely doesn't require it
+            //Invalid range
             close(filefd);
             ta->resp_status = HTTP_BAD_REQUEST;
             return send_response(ta);
         }
         from = ta->range_start;
 
-        // Adjust end
+        //adjust end
         if (ta->range_end == -1 || ta->range_end >= filesize) {
             to = filesize - 1;
         } else {
             to = ta->range_end;
         }
 
-        // now partial content
+        //now partial content
         ta->resp_status = HTTP_PARTIAL_CONTENT;
         off_t content_length = to - from + 1;
         http_add_header(&ta->resp_headers, "Content-Type", "%s", guess_mime_type(fname));
@@ -461,7 +484,7 @@ handle_static_asset(struct http_transaction *ta, char *basedir)
         close(filefd);
         return success;
     } else {
-        // Normal request (no Range)
+        //normal request (no Range)
         ta->resp_status = HTTP_OK;
         http_add_header(&ta->resp_headers, "Content-Type", "%s", guess_mime_type(fname));
         add_content_length(&ta->resp_headers, filesize);
