@@ -1,0 +1,43 @@
+start_time        : 1733975769
+last_update       : 1733979433
+run_time          : 3663
+fuzzer_pid        : 3169571
+cycles_done       : 0
+cycles_wo_finds   : 0
+time_wo_finds     : 442
+execs_done        : 258137
+execs_per_sec     : 70.46
+execs_ps_last_min : 104.37
+corpus_count      : 485
+corpus_favored    : 64
+corpus_found      : 75
+corpus_imported   : 44
+corpus_variable   : 176
+max_depth         : 2
+cur_item          : 70
+pending_favs      : 62
+pending_total     : 278
+stability         : 72.76%
+bitmap_cvg        : 0.01%
+saved_crashes     : 0
+saved_hangs       : 0
+last_find         : 1733979273
+last_crash        : 0
+last_hang         : 0
+execs_since_crash : 258137
+exec_timeout      : 60
+slowest_exec_ms   : 0
+peak_rss_mb       : 5
+cpu_affinity      : 4
+edges_found       : 525
+total_edges       : 8388608
+var_byte_count    : 143
+havoc_expansion   : 0
+auto_dict_entries : 0
+testcache_size    : 29342222
+testcache_count   : 485
+testcache_evict   : 0
+afl_banner        : pserv [fuzzing on 4 core(s)]
+afl_version       : ++4.09a
+target_mode       : shmem_testcase default
+command_line      : /home/courses/cs3214/bin/sfi/AFLplusplus/afl-fuzz -i /home/courses/cs3214/bin/sfi/comux_inputs -o /home/ugrads/majors/ishitagupta/CS3214/pserv/src/fuzz_out_2024-12-11_22-55-26 -V 5400.0 -M fuzz0 -T pserv [fuzzing on 4 core(s)] /home/ugrads/majors/ishitagupta/CS3214/pserv/src/server-fuzz -p 56231 -R /home/ugrads/majors/ishitagupta/CS3214/pserv/src/fuzz_root
