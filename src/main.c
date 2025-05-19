@@ -17,6 +17,8 @@
 #include "bufio.h"
 #include "main.h"
 
+const char *global_jwt_secret;
+
 // Added to handle concurrent clients using threads.
 static void *handle_client_thread(void *arg);
 
@@ -145,6 +147,10 @@ main(int ac, char *av[])
 
     if (port_string == NULL)
         usage(av[0]);
+
+    const char *env_secret = getenv("SECRET");
+    if (!env_secret) env_secret = "your_secret_key";
+    global_jwt_secret = strdup(env_secret);
 
     /* We ignore SIGPIPE to prevent the process from terminating when it tries
      * to send data to a connection that the client already closed.

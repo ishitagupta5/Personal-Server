@@ -7,6 +7,9 @@
  *
  * @author G. Back for CS 3214 Spring 2018
  */
+
+extern const char *global_jwt_secret;
+
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -41,7 +44,7 @@
     (!strncasecmp(field_name, header, sizeof(header) - 1))
 
 // Added a global constant for the secret key used to sign and validate JWT tokens.
-const char *jwt_secret_key = "big balls";
+//char *jwt_secret_key = "SECRET";
 
 /* Parse HTTP request line, setting req_method, req_path, and req_version. */
 static bool
@@ -189,7 +192,7 @@ http_process_headers(struct http_transaction *ta)
             // Validate JWT token and set authentication status.
             if (token) {
                 jwt_t *jwt = NULL;
-                if (jwt_decode(&jwt, token, (unsigned char *)jwt_secret_key, (int)strlen(jwt_secret_key)) == 0) {
+                if (jwt_decode(&jwt, token, (unsigned char *)global_jwt_secret, (int)strlen(global_jwt_secret)) == 0) {
                     time_t exp = jwt_get_grant_int(jwt, "exp");
                     time_t now = time(NULL);
                     if (exp > now) { // Token is valid and not expired
@@ -531,8 +534,7 @@ static bool handle_api(struct http_transaction *ta) {
     if (!env_user) env_user = "user";
     const char *env_pass = getenv("USER_PASS");
     if (!env_pass) env_pass = "pass";
-    const char *jwt_secret_key = getenv("SECRET");
-    if (!jwt_secret_key) jwt_secret_key = "your_secret_key";
+   const char *jwt_secret_key = global_jwt_secret;
 
     // Initialize authentication field
     ta->is_authenticated = false;
@@ -621,9 +623,9 @@ static bool handle_api(struct http_transaction *ta) {
             jwt_t *jwt;
             jwt_new(&jwt);
 
+            time_t now = time(NULL);             // Current time
             // Add claims to the JWT
             jwt_add_grant(jwt, "sub", username); // Subject claim (username)
-            time_t now = time(NULL);             // Current time
             jwt_add_grant_int(jwt, "iat", now);  // Issued-at claim
             jwt_add_grant_int(jwt, "exp", now + token_expiration_time); // Expiration claim
 
@@ -790,8 +792,7 @@ http_handle_transaction(struct http_client *self)
                 while (*value == ' ' || *value == '\t') value++;
 
                 if (!strcasecmp(name, "auth_jwt")) {
-                    const char *jwt_secret = getenv("SECRET");
-                    if (!jwt_secret) jwt_secret = "your_secret_key";
+                    const char *jwt_secret = global_jwt_secret;
 
                     jwt_t *jwt = NULL;
                     if (jwt_decode(&jwt, value, (unsigned char *)jwt_secret, (int)strlen(jwt_secret)) == 0) {
